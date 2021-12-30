@@ -1,6 +1,7 @@
-import * as T from "typed";
+import { map, string, toErr, TypeAggregateErr } from "typed";
+import { Err, Ok, type Result } from "rsts";
 
-export type Rule = (str: string) => T.Result<string>;
+export type Rule = (str: string) => Result<string, TypeAggregateErr>;
 
 const range = (start: number, end: number): number[] => {
   const result: number[] = [];
@@ -37,13 +38,11 @@ const testCount = (
   range: number[],
   min: number,
   word: string,
-): T.Result<string> => {
+): Result<string, TypeAggregateErr> => {
   const count = occ(str, range);
   return count >= min
-    ? T.success(str)
-    : T.failure(
-        T.toError(`Expecting at least '${min}' ${word}. Got '${count}'`),
-      );
+    ? Ok(str)
+    : Err(toErr(`Expecting at least '${min}' ${word}. Got '${count}'.`));
 };
 
 /**
@@ -52,8 +51,8 @@ const testCount = (
 export const nospace: Rule = (str: string) => {
   const count = occ(str, SPACE_RANGE);
   return count === 0
-    ? T.success(str)
-    : T.failure(T.toError(`Expecting no whitespaces. Got '${count}'`));
+    ? Ok(str)
+    : Err(toErr(`Expecting no whitespaces. Got '${count}'.`));
 };
 
 /**
@@ -103,11 +102,9 @@ export const min =
   (min: number): Rule =>
   (str: string) =>
     str.length >= min
-      ? T.success(str)
-      : T.failure(
-          T.toError(
-            `Expecting at least '${min}' characters. Got '${str.length}'`,
-          ),
+      ? Ok(str)
+      : Err(
+          toErr(`Expecting at least '${min}' characters. Got '${str.length}'.`),
         );
 
 /**
@@ -117,11 +114,9 @@ export const max =
   (max: number): Rule =>
   (str: string) =>
     str.length <= max
-      ? T.success(str)
-      : T.failure(
-          T.toError(
-            `Expecting at most '${max}' characters. Got '${str.length}'`,
-          ),
+      ? Ok(str)
+      : Err(
+          toErr(`Expecting at most '${max}' characters. Got '${str.length}'.`),
         );
 
 /**
@@ -131,8 +126,8 @@ export const blacklist =
   (blacklist: string[]): Rule =>
   (str: string) =>
     blacklist.includes(str)
-      ? T.failure(T.toError(`Expecting not to be '${str}' password`))
-      : T.success(str);
+      ? Err(toErr(`Expecting not to be '${str}' password.`))
+      : Ok(str);
 
 /**
  * Check if the string passes all the rules
@@ -141,14 +136,14 @@ export const password = (...rules: Rule[]) => {
   if (rules.length === 0) {
     rules = [nospace, min(8), max(24), upper(), lower(), digit()];
   }
-  return T.map(T.string, (value) => {
-    const errors: T.Err[] = [];
-    for (const rule of rules) {
-      const result = rule(value);
-      if (!result.success) {
-        errors.push(...result.errors);
-      }
-    }
-    return errors.length ? T.failure(...errors) : T.success(value);
+  return map(string, (value) => {
+    const err = new TypeAggregateErr();
+    rules.forEach((rule) =>
+      rule(value).match({
+        Ok: () => void 0,
+        Err: (e) => err.errors.push(...e.errors),
+      }),
+    );
+    return err.errors.length ? Err(err) : Ok(value);
   });
 };
