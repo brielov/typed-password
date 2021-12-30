@@ -1,6 +1,6 @@
 {
   "name": "typed-password",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A simple rule-based typed add-on for checking for password strength",
   "main": "dist/typed-password.js",
   "module": "dist/typed-password.mjs",
